@@ -1,0 +1,1821 @@
+
+; Constant pool
+
+; Module Grid (base = 4)
+CONSTANT	M_GRID_B,04				; Background color
+CONSTANT	M_GRID_F,05				; Foreground color
+
+; Module text (base = 8)
+CONSTANT M_TEXT_ADDR,08			; Low byte address
+CONSTANT M_TEXT_CA,09			; Color A
+CONSTANT M_TEXT_CB,0A			; Color B
+CONSTANT M_TEXT_V,0B				; Symbol
+
+; Module clock A (base = 16)
+CONSTANT BASE_CLOCKA,10
+CONSTANT M_CLOCKA,10
+CONSTANT M_CLOCKA1,11
+CONSTANT M_CLOCKA2,12
+CONSTANT M_CLOCKA3,13
+
+; Module clock B (base = 20)
+CONSTANT BASE_CLOCKB,14
+CONSTANT M_CLOCKB,14
+CONSTANT M_CLOCKB1,15
+CONSTANT M_CLOCKB2,16
+CONSTANT M_CLOCKB3,17
+
+; Module keyboard (base = 24)
+CONSTANT M_KEYS_V0,18			; Low byte codes
+CONSTANT M_KEYS_V1,19			; Hi byte codes
+
+; Module Relays
+CONSTANT M_RELAY_A,1C
+CONSTANT M_RELAY_B,1D
+
+; Module DDS
+CONSTANT BASE_DDS_LOW,20		; DDS Low half
+CONSTANT BASE_DDS_HIGH,21		; DDS High half
+CONSTANT BASE_DDS_START,22		; DDS Start
+
+; Module TRI
+CONSTANT BASE_TRI,30				; TRI SIN
+
+; Module Triggers
+CONSTANT M_FFA,C8
+CONSTANT M_FFB,C9
+
+; Module enable
+CONSTANT M_STOP,FD				; Stop bits
+CONSTANT M_ENABLE,FE				; Enable bits
+
+; Lo Keys
+CONSTANT LKEY_A_INC,80			; Channel A code++
+CONSTANT LKEY_A_DEC,40			; Channel A code--
+CONSTANT LKEY_A_ACD,20			; Channel A ac dc
+CONSTANT LKEY_A_F_F,10			; Channel A front fall
+CONSTANT LKEY_B_INC,08			; Channel B code++
+CONSTANT LKEY_B_DEC,04			; Channel B code--
+CONSTANT LKEY_B_ACD,02			; Channel B ac dc
+CONSTANT LKEY_B_F_F,01			; Channel B front fall
+CONSTANT HKEY_MODE,08			; Channel A/B mode
+CONSTANT HKEY_COL_A,02			; Channel A color
+CONSTANT HKEY_COL_B,04			; Channel B color
+CONSTANT HKEY_BCFC,01			; Palette
+CONSTANT HKEY_DDS_INC,80		; DDS Inc
+CONSTANT HKEY_DDS_DEC,40		; DDS Dec
+CONSTANT HKEY_DDSD_INC,20		; DDS Inc
+CONSTANT HKEY_DDSD_DEC,10		; DDS Dec
+
+; Memory pad
+CONSTANT _FREQ_A,00				; Frequency channel A
+CONSTANT _FREQ_B,01				; Frequency channel B
+CONSTANT _ACDC_A,02				; AC DC channel A
+CONSTANT _ACDC_B,03				; AC DC channel B
+CONSTANT _GRID,04					; Grid & Background scheme
+CONSTANT _COLOR_A,05				; Color of A
+CONSTANT _COLOR_B,06				; Color of B
+CONSTANT _MODE,07					; Channels mode
+CONSTANT _FFA,08				   ; FF channel A
+CONSTANT _FFB,09				   ; FF channel B
+CONSTANT _TRI,0A				   ; Triangle
+CONSTANT _DDSS,0B				   ; DDS freq Scale [0..6]
+CONSTANT _DDSF,0C				   ; DDS freq Value [1.99]
+
+CONSTANT _FR0,10
+CONSTANT _FR1,11
+CONSTANT _FR2,12
+CONSTANT _FR3,13
+CONSTANT _FR4,14
+CONSTANT _FR5,15
+
+CONSTANT _FD0,16
+CONSTANT _FD1,17
+CONSTANT _FD2,18
+CONSTANT _FD3,19
+CONSTANT _FD4,1A
+CONSTANT _FD5,1B
+
+CONSTANT _FF0,1C
+CONSTANT _FF1,1D
+CONSTANT _FF2,1E
+CONSTANT _FF3,1F
+
+
+; Preinit 
+LOAD		s0,28						; Color of all text A
+STORE		s0,_COLOR_A
+LOAD		s0,07						; Color of all text B
+STORE		s0,_COLOR_B
+LOAD		s0,01
+STORE		s0,_MODE
+CALL		MAIN_MODE
+
+; Write static text
+CALL		MAIN_STATIC_TEXT
+
+; Preinit freqs
+LOAD		s0,0D
+STORE		s0,_FREQ_A
+STORE		s0,_FREQ_B
+CALL		MAIN_OUT_A
+CALL		MAIN_OUT_B
+
+; Preinit ACDC
+LOAD		s0,00 					; AC start
+STORE		s0,_ACDC_A
+STORE		s0,_ACDC_B
+; and FF
+STORE		s0,_FFA
+STORE		s0,_FFB
+; and DDS
+STORE		s0,_DDSS
+STORE		s0,_TRI
+
+CALL		MAIN_ACDC_A
+CALL		MAIN_ACDC_B
+
+; Preinit GRID
+LOAD		s0,01
+STORE		s0,_GRID
+CALL		MAIN_GRID
+
+; Preinit FF
+CALL		MAIN_FFA
+CALL		MAIN_FFB
+
+; Preinit DDS
+LOAD		s0,0A
+STORE		s0,_DDSF
+CALL		MAIN_DDS_FULL
+
+; Preinit last state
+LOAD 		s6,00
+LOAD		s7,00
+
+; Start point
+mmm:
+
+; ============================================
+
+INPUT    s0,BASE_TRI
+FETCH    s1,_TRI
+COMPARE  s0,s1
+JUMP		Z,mmm2
+STORE		s0,_TRI
+CALL		MAIN_DDS_FULL
+mmm2:
+
+; Freqs
+CALL     MAIN207
+
+
+; Read keys
+INPUT		s8,M_KEYS_V0			; Read keys code
+;ADD		s8,00
+INPUT		s9,M_KEYS_V1			; Read keys code
+
+; Compare with old state
+COMPARE	s8,s6
+JUMP		NZ,diff
+COMPARE	s9,s7
+JUMP		Z,mmm
+
+diff:
+
+; Found different - Store to last
+LOAD		s6,s8
+LOAD		s7,s9
+
+; Process keys
+COMPARE	s9,HKEY_BCFC
+JUMP		NZ,__LZ
+FETCH		s0,_GRID
+ADD		s0,01
+STORE		s0,_GRID
+CALL		MAIN_GRID
+JUMP		mmm
+__LZ:
+
+COMPARE	s9,HKEY_MODE
+JUMP		NZ,__LY
+FETCH		s0,_MODE
+ADD		s0,01
+COMPARE  s0,04
+JUMP		NZ,__LYY
+LOAD		s0,01
+__LYY:
+STORE		s0,_MODE
+CALL		MAIN_MODE
+JUMP		mmm
+__LY:
+
+; Color A
+COMPARE	s9,HKEY_COL_A
+JUMP		NZ,__LCA
+FETCH		s0,_COLOR_A
+ADD		s0,01
+STORE		s0,_COLOR_A
+CALL		MAIN_MODE
+JUMP		mmm
+__LCA:
+
+; Color B
+COMPARE	s9,HKEY_COL_B
+JUMP		NZ,__LCB
+FETCH		s0,_COLOR_B
+ADD		s0,01
+STORE		s0,_COLOR_B
+CALL		MAIN_MODE
+JUMP		mmm
+__LCB:
+
+
+; ============================================
+
+FETCH		s0,_FREQ_A
+
+COMPARE	s8,LKEY_A_INC
+JUMP		NZ,__L0
+ADD		s0,01
+COMPARE  s0,15
+JUMP     Z,mmm
+JUMP		__LFA
+__L0:
+
+COMPARE	s8,LKEY_A_DEC
+JUMP		NZ,__L1
+CALL		KEYS_SUB
+__LFA:
+STORE		s0,_FREQ_A
+CALL		MAIN_OUT_A
+JUMP		mmm
+__L1:
+
+; ============================================
+
+; Prefetch
+
+FETCH		s0,_FREQ_B
+
+COMPARE	s8,LKEY_B_INC
+JUMP		NZ,__L2
+ADD		s0,01
+COMPARE  s0,15
+JUMP     Z,mmm
+JUMP		__LFB
+__L2:
+
+COMPARE	s8,LKEY_B_DEC
+JUMP		NZ,__L3
+CALL		KEYS_SUB
+__LFB:
+STORE		s0,_FREQ_B
+CALL		MAIN_OUT_B
+JUMP		mmm
+__L3:
+
+; ============================================
+
+COMPARE	s8,LKEY_A_ACD
+JUMP		NZ,__L4
+FETCH		s0,_ACDC_A
+ADD		s0,01
+STORE		s0,_ACDC_A
+CALL		MAIN_ACDC_A
+JUMP		mmm
+__L4:
+
+COMPARE	s8,LKEY_B_ACD
+JUMP		NZ,__L5
+FETCH		s0,_ACDC_B
+ADD		s0,01
+STORE		s0,_ACDC_B
+CALL		MAIN_ACDC_B
+JUMP		mmm
+__L5:
+
+COMPARE	s8,LKEY_A_F_F
+JUMP		NZ,__L6
+FETCH		s0,_FFA
+ADD		s0,01
+COMPARE	s0,05
+JUMP		NZ,__L61
+LOAD		s0,00
+__L61:
+STORE		s0,_FFA
+CALL		MAIN_FFA
+JUMP		mmm
+__L6:
+
+COMPARE	s8,LKEY_B_F_F
+JUMP		NZ,__L7
+FETCH		s0,_FFB
+ADD		s0,01
+COMPARE	s0,05
+JUMP		NZ,__L71
+LOAD		s0,00
+__L71:
+STORE		s0,_FFB
+CALL		MAIN_FFB
+JUMP		mmm
+__L7:
+
+
+
+
+; =========================================== DDSS
+
+; Prefetch
+FETCH		s0,_DDSS
+
+COMPARE	s9,HKEY_DDS_INC
+JUMP		NZ,__L8
+ADD		s0,01
+COMPARE	s0,07
+JUMP		NZ,__L8_
+LOAD		s0,06
+__L8_:
+JUMP		__LB_DDS2
+__L8:
+
+; DDS
+COMPARE	s9,HKEY_DDS_DEC
+JUMP		NZ,__L9
+CALL		KEYS_SUB
+__LB_DDS2:
+STORE		s0,_DDSS
+CALL		MAIN_DDS_FULL
+JUMP mmm
+__L9:
+
+; =========================================== DDSF
+; Prefetch
+
+FETCH		s0,_DDSF
+
+; DDS
+COMPARE	s9,HKEY_DDSD_INC
+JUMP		NZ,__LA
+ADD		s0,01
+COMPARE	s0,64
+JUMP		C,__LA_
+LOAD		s0,63
+__LA_:
+JUMP		__LB_DDS
+__LA:
+
+; DDS
+COMPARE	s9,HKEY_DDSD_DEC
+JUMP		NZ,__LB
+SUB		s0,01
+COMPARE	s0,09
+JUMP		NZ,__LB_
+LOAD		s0,0A
+__LB_:
+__LB_DDS:
+STORE		s0,_DDSF
+CALL		MAIN_DDS_FULL
+JUMP mmm
+__LB:
+
+
+JUMP mmm
+
+
+;==============================================================================
+; Sub by One
+;==============================================================================
+KEYS_SUB:
+SUB		s0,01
+COMPARE	s0,FF
+JUMP		NZ,__KS
+LOAD		s0,00
+__KS:
+RETURN
+
+
+; ==========================================+
+; Write address and post increment addres   |
+; ==========================================+
+M_TEXT_OWI_ADDRESS:
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+; ==========================================+
+; Write static text for canals & divs       |
+; ==========================================+
+MAIN_STATIC_TEXT:
+
+LOAD		s0,0A
+OUTPUT	s0,M_TEXT_ADDR							
+
+LOAD		s0,43
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,48
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,2E
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,41
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,11
+OUTPUT	s0,M_TEXT_ADDR								
+
+LOAD		s0,73
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,65
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,63
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,2F
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,64
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,69
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,76
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,42
+OUTPUT	s0,M_TEXT_ADDR								
+
+LOAD		s0,43
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,48
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,2E
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,42
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,49
+OUTPUT	s0,M_TEXT_ADDR								
+
+LOAD		s0,73
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,65
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,63
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,2F
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,64
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,69
+OUTPUT 	s0,M_TEXT_V
+
+LOAD		s0,76
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+
+__W0:
+LOAD		s0,30
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__W1:
+LOAD		s0,31
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__W2:
+LOAD		s0,32
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__W5:
+LOAD		s0,35
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__W10:
+CALL		__W1
+JUMP		__W0
+__W20:
+CALL		__W2
+JUMP		__W0
+__W50:
+CALL		__W5
+JUMP		__W0
+
+__W100:
+CALL		__W10
+JUMP		__W0
+__W200:
+CALL		__W20
+JUMP		__W0
+__W500:
+CALL		__W50
+JUMP		__W0
+
+__WD:
+LOAD		s0,2E
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__WS:
+LOAD		s0,73
+OUTPUT 	s0,M_TEXT_V
+RETURN
+
+__WMS:
+LOAD		s0,6D
+OUTPUT 	s0,M_TEXT_V
+JUMP		__WS
+
+__WMKS:
+LOAD		s0,6D
+OUTPUT 	s0,M_TEXT_V
+LOAD		s0,6B
+OUTPUT 	s0,M_TEXT_V
+JUMP		__WS
+
+__WMHZ:								; kHz
+;CALL		__WP
+LOAD		s0,4D
+OUTPUT	s0,M_TEXT_V
+JUMP		__WHZ
+
+__WKHZ:								; kHz
+;CALL		__WP
+LOAD		s0,6B
+OUTPUT	s0,M_TEXT_V
+
+__WHZ:								; Hz
+LOAD		s0,48
+OUTPUT	s0,M_TEXT_V
+LOAD		s0,7A
+OUTPUT	s0,M_TEXT_V
+RETURN
+
+__W3P:
+CALL		__WP
+__W2P:
+CALL		__WP
+__WP:
+LOAD		s0,20
+OUTPUT	s0,M_TEXT_V
+RETURN
+
+
+; ==========================================+
+; Write value of period to screen and regs  |
+; In: s1 = counter                          |
+; ==========================================+
+MAIN_FREQ:
+COMPARE	s1,00
+JUMP		NZ,__A00
+CALL		__W2
+JUMP		__WS
+__A00:
+COMPARE	s1,01
+JUMP		NZ,__A01
+CALL		__W1
+JUMP		__WS
+__A01:
+COMPARE	s1,02
+JUMP		NZ,__A02
+CALL		__W0
+CALL		__WD
+CALL		__W5
+JUMP		__WS
+__A02:
+COMPARE	s1,03
+JUMP		NZ,__A03
+CALL		__W0
+CALL		__WD
+CALL		__W2
+JUMP		__WS
+__A03:
+COMPARE	s1,04
+JUMP		NZ,__A04
+CALL		__W0
+CALL		__WD
+CALL		__W1
+JUMP		__WS
+__A04:
+COMPARE	s1,05
+JUMP		NZ,__A05
+CALL		__W50
+JUMP		__WMS
+__A05:
+COMPARE	s1,06
+JUMP		NZ,__A06
+CALL		__W20
+JUMP		__WMS
+__A06:
+COMPARE	s1,07
+JUMP		NZ,__A07
+CALL		__W10
+JUMP		__WMS
+__A07:
+COMPARE	s1,08
+JUMP		NZ,__A08
+CALL		__W5
+JUMP		__WMS
+__A08:
+COMPARE	s1,09
+JUMP		NZ,__A09
+CALL		__W2
+JUMP		__WMS
+__A09:
+COMPARE	s1,0A
+JUMP		NZ,__A0A
+CALL		__W1
+JUMP		__WMS
+__A0A:
+COMPARE	s1,0B
+JUMP		NZ,__A0B
+CALL		__W0
+CALL		__WD
+CALL		__W5
+JUMP		__WMS
+__A0B:
+COMPARE	s1,0C
+JUMP		NZ,__A0C
+CALL		__W0
+CALL		__WD
+CALL		__W2
+JUMP		__WMS
+__A0C:
+COMPARE	s1,0D
+JUMP		NZ,__A0D
+CALL		__W0
+CALL		__WD
+CALL		__W1
+JUMP		__WMS
+__A0D:
+COMPARE	s1,0E
+JUMP		NZ,__A0E
+CALL		__W50
+JUMP		__WMKS
+__A0E:
+COMPARE	s1,0F
+JUMP		NZ,__A0F
+CALL		__W20
+JUMP		__WMKS
+__A0F:
+COMPARE	s1,10
+JUMP		NZ,__A10
+CALL		__W10
+JUMP		__WMKS
+__A10:
+COMPARE	s1,11
+JUMP		NZ,__A11
+CALL		__W5
+JUMP		__WMKS
+__A11:
+COMPARE	s1,12
+JUMP		NZ,__A12
+CALL		__W2
+JUMP		__WMKS
+__A12:
+COMPARE	s1,13
+JUMP		NZ,__A13
+CALL		__W1
+JUMP		__WMKS
+__A13:
+COMPARE	s1,14
+JUMP		NZ,__A14
+CALL		__W0
+CALL		__WD
+CALL		__W5
+JUMP		__WMKS
+__A14:
+RETURN
+
+
+
+; ==========================================+
+; Out counter A on screen and clock         |
+; ==========================================+
+MAIN_OUT_A:
+; Address of A
+FETCH		s1,_FREQ_A
+OUTPUT	s1,BASE_CLOCKA
+LOAD		s0,1A
+JUMP		MAIN_OUT
+
+; ==========================================+
+; Out counter B on screen and clock         |
+; ==========================================+
+MAIN_OUT_B:
+; Address of B
+FETCH		s1,_FREQ_B
+OUTPUT	s1,BASE_CLOCKB
+LOAD		s0,52
+
+; ==========================================+
+; Out clock on screen                       |
+; ==========================================+
+MAIN_OUT:
+OUTPUT	s0,M_TEXT_ADDR
+CALL		MAIN_FREQ
+LOAD		s0,20
+OUTPUT	s0,M_TEXT_V
+OUTPUT	s0,M_TEXT_V
+OUTPUT	s0,M_TEXT_V
+RETURN
+
+
+
+
+
+
+
+
+
+
+; ==========================================+
+; Out ACDC ch A on screen and module        |
+; ==========================================+
+MAIN_ACDC_A:
+FETCH		s1,_ACDC_A
+AND		s1,01
+LOAD		sE,23
+OUTPUT	sE,M_TEXT_ADDR
+
+LOAD		s0,44											; #A
+COMPARE	s1,01
+CALL		Z,M_TEXT_OWI_ADDRESS
+LOAD		s0,41											; #D
+COMPARE	s1,00
+CALL		Z,M_TEXT_OWI_ADDRESS
+LOAD		s0,43											; #C
+OUTPUT 	s0,M_TEXT_V
+OUTPUT	s1,M_RELAY_A							; Out to relay
+RETURN
+
+; ==========================================+
+; Out ACDC ch B on screen and module        |
+; ==========================================+
+MAIN_ACDC_B:
+FETCH		s1,_ACDC_B
+AND		s1,01
+LOAD		sE,5B
+OUTPUT	sE,M_TEXT_ADDR
+
+LOAD		s0,44											; #A
+COMPARE	s1,01
+CALL		Z,M_TEXT_OWI_ADDRESS
+LOAD		s0,41											; #D
+COMPARE	s1,00
+CALL		Z,M_TEXT_OWI_ADDRESS
+LOAD		s0,43											; #C
+OUTPUT 	s0,M_TEXT_V
+OUTPUT	s1,M_RELAY_B							; Out to relay
+RETURN
+
+; ==========================================+
+; Out colors & mode
+; ==========================================+
+MAIN_MODE:
+FETCH		s0,_MODE
+OUTPUT	s0,M_ENABLE
+LOAD		s1,00											; Black
+FETCH		s2,_COLOR_A									; A color
+FETCH		s3,_COLOR_B									; B color
+COMPARE	s0,01											; Only A
+JUMP		NZ,__M0
+OUTPUT	s2,M_TEXT_CA
+OUTPUT	s1,M_TEXT_CB
+RETURN
+__M0:
+COMPARE	s0,02
+JUMP		NZ,__M1
+OUTPUT	s1,M_TEXT_CA
+OUTPUT	s3,M_TEXT_CB
+RETURN
+__M1:
+OUTPUT	s2,M_TEXT_CA
+OUTPUT	s3,M_TEXT_CB
+RETURN
+
+; ==========================================+
+; Out Mode
+; ==========================================+
+MAIN_FFB:
+FETCH		s1,_FFB
+LOAD		s2,s1
+COMPARE	s1,05
+JUMP		NZ,__l002	
+LOAD		s2,50
+__l002:
+COMPARE	s1,04
+JUMP		NZ,__l003
+LOAD		s2,B4
+__l003:
+OUTPUT	s2,M_FFB
+;; address
+LOAD		sE,61
+OUTPUT	sE,M_TEXT_ADDR								
+JUMP	   __LOU
+
+MAIN_FFA:
+FETCH		s1,_FFA
+LOAD		s2,s1
+COMPARE	s1,05
+JUMP		NZ,__l000	
+LOAD		s2,50
+__l000:
+COMPARE	s1,04
+JUMP		NZ,__l001
+LOAD		s2,B4
+__l001:
+OUTPUT	s2,M_FFA
+;; address
+LOAD		sE,29
+OUTPUT	sE,M_TEXT_ADDR								
+
+__LOU:
+
+LOAD		s2,41										; ANALOG
+LOAD		s3,4E
+LOAD		s4,41
+LOAD		s5,4C
+LOAD		sA,4F
+LOAD		sB,47
+LOAD		sC,20
+COMPARE	s1,00
+JUMP		Z,MAIN_5D
+LOAD		s2,44										; DIGIT
+LOAD		s3,49
+LOAD		s4,47
+LOAD		s5,49
+LOAD		sA,54
+LOAD		sB,20
+LOAD		sC,31
+COMPARE	s1,01
+JUMP		Z,MAIN_5D
+LOAD		sC,32
+COMPARE	s1,02
+JUMP		Z,MAIN_5D
+LOAD		sC,33
+COMPARE	s1,03
+JUMP		Z,MAIN_5D
+
+LOAD     s2,20
+LOAD		s3,4C										; LEVEL
+LOAD		s4,45
+LOAD		s5,56
+LOAD		sA,45
+LOAD		sB,4C
+LOAD		sC,20
+;COMPARE	s1,04
+;JUMP		Z,MAIN_5D
+;LOAD		sC,42
+
+; ==========================================+
+; Out 5 digits                              |
+; ==========================================+
+MAIN_5D:
+OUTPUT 	s2,M_TEXT_V
+OUTPUT 	s3,M_TEXT_V
+OUTPUT 	s4,M_TEXT_V
+OUTPUT 	s5,M_TEXT_V
+OUTPUT 	sA,M_TEXT_V
+OUTPUT 	sB,M_TEXT_V
+OUTPUT 	sC,M_TEXT_V
+RETURN
+
+; ==========================================+
+; Out scheme to grid                        |
+; ==========================================+
+MAIN_GRID:
+FETCH		s2,_GRID
+AND		s2,0F
+LOAD		s0,00
+LOAD		s1,01
+COMPARE	s2,00
+JUMP		Z,__ORG
+LOAD		s1,20
+COMPARE	s2,01
+JUMP		Z,__ORG
+LOAD		s1,05
+COMPARE	s2,02
+JUMP		Z,__ORG
+LOAD		s1,3C
+COMPARE	s2,03
+JUMP		Z,__ORG
+LOAD		s0,05
+LOAD		s1,30
+COMPARE	s2,04
+JUMP		Z,__ORG
+LOAD		s0,0B
+LOAD		s1,04
+COMPARE	s2,05
+JUMP		Z,__ORG
+LOAD		s0,10
+LOAD		s1,06
+COMPARE	s2,06
+JUMP		Z,__ORG
+LOAD		s0,11
+LOAD		s1,1C
+COMPARE	s2,07
+JUMP		Z,__ORG
+LOAD		s0,12
+LOAD		s1,10
+COMPARE	s2,08
+JUMP		Z,__ORG
+LOAD		s0,14
+LOAD		s1,06
+COMPARE	s2,09
+JUMP		Z,__ORG
+LOAD		s0,15
+LOAD		s1,0E
+COMPARE	s2,0A
+JUMP		Z,__ORG
+LOAD		s0,1F
+LOAD		s1,30
+COMPARE	s2,0B
+JUMP		Z,__ORG
+LOAD		s0,23
+LOAD		s1,04
+COMPARE	s2,0C
+JUMP		Z,__ORG
+LOAD		s0,29
+LOAD		s1,01
+COMPARE	s2,0D
+JUMP		Z,__ORG
+LOAD		s0,34
+LOAD		s1,01
+COMPARE	s2,0E
+JUMP		Z,__ORG
+LOAD		s0,38
+LOAD		s1,02
+__ORG:
+OUTPUT	s0,M_GRID_B
+OUTPUT	s1,M_GRID_F
+RETURN
+
+
+; ==========================================+
+; Write value of period to screen and regs  |
+; In: s0 = address of block, s1 = counter   |
+; Tmp: s0,s2,s3,s4 dirthy                   |
+; ==========================================+
+;MAIN_REG_OUT:
+
+;LOAD		s2,3D
+;LOAD		s3,08
+;LOAD		s4,FF
+;COMPARE	s1,00
+;JUMP		Z,__ORA
+
+;LOAD		s2,1E
+;LOAD		s3,84
+;LOAD		s4,7F
+;COMPARE	s1,01
+;JUMP		Z,__ORA
+
+;LOAD		s2,0F
+;LOAD		s3,42
+;LOAD		s4,3F
+;COMPARE	s1,02
+;JUMP		Z,__ORA
+
+;LOAD		s2,06
+;LOAD		s3,1A
+;LOAD		s4,7F
+;COMPARE	s1,03
+;JUMP		Z,__ORA
+
+;LOAD		s2,03
+;LOAD		s3,0D
+;LOAD		s4,3F
+;COMPARE	s1,04
+;JUMP		Z,__ORA
+
+;LOAD		s2,01
+;LOAD		s3,86
+;LOAD		s4,9F
+;COMPARE	s1,05
+;JUMP		Z,__ORA
+
+;LOAD		s2,00
+;LOAD		s3,9C
+;LOAD		s4,3F
+;COMPARE	s1,06
+;JUMP		Z,__ORA
+
+;LOAD		s3,4E
+;LOAD		s4,1F
+;COMPARE	s1,07
+;JUMP		Z,__ORA
+
+;LOAD		s3,27
+;LOAD		s4,0F
+;COMPARE	s1,08
+;JUMP		Z,__ORA
+
+;LOAD		s3,0F
+;LOAD		s4,9F
+;COMPARE	s1,09
+;JUMP		Z,__ORA
+
+;LOAD		s3,07
+;LOAD		s4,CF
+;COMPARE	s1,0A
+;JUMP		Z,__ORA
+
+;LOAD		s3,03
+;LOAD		s4,EF
+;COMPARE	s1,0B
+;JUMP		Z,__ORA
+
+;LOAD		s3,01
+;LOAD		s4,8F
+;COMPARE	s1,0C
+;JUMP		Z,__ORA
+
+;LOAD		s3,00
+;LOAD		s4,C7
+;COMPARE	s1,0D
+;JUMP		Z,__ORA
+
+;LOAD		s4,63
+;COMPARE	s1,0E
+;JUMP		Z,__ORA
+
+;LOAD		s4,27
+;COMPARE	s1,0F
+;JUMP		Z,__ORA
+
+;LOAD		s4,13
+;COMPARE	s1,10
+;JUMP		Z,__ORA
+
+;LOAD		s4,09
+;COMPARE	s1,11
+;JUMP		Z,__ORA
+
+;LOAD		s4,03
+;COMPARE	s1,12
+;JUMP		Z,__ORA
+
+;LOAD		s4,01
+;COMPARE	s1,13
+;JUMP		Z,__ORA
+
+;LOAD		s4,00
+
+;__ORA:
+;OUTPUT	s4,(s0)
+;ADD		s0,01
+;OUTPUT	s3,(s0)
+;ADD		s0,01
+;OUTPUT	s2,(s0)
+;RETURN
+
+
+; ==========================================+
+; Out all
+; ==========================================+
+MAIN207:
+CALL		MAIN209
+LOAD		sE,31			; Addr
+OUTPUT	sE,M_TEXT_ADDR								
+CALL     MAIN_DB
+CALL		MAIN208
+LOAD		sE,69			; Addr
+OUTPUT	sE,M_TEXT_ADDR								
+CALL     MAIN_DB
+RETURN
+
+; ==========================================+
+; Read 32 bit from prescaler
+; ==========================================+
+MAIN208:
+INPUT	   s0,M_CLOCKB
+STORE		s0,_FR0
+INPUT	   s0,M_CLOCKB1
+STORE		s0,_FR1
+INPUT	   s0,M_CLOCKB2
+STORE		s0,_FR2
+INPUT	   s0,M_CLOCKB3
+STORE		s0,_FR3
+RETURN
+
+; ==========================================+
+; Read 32 bit from prescaler
+; ==========================================+
+MAIN209:
+INPUT	   s0,M_CLOCKA
+STORE		s0,_FR0
+INPUT	   s0,M_CLOCKA1
+STORE		s0,_FR1
+INPUT	   s0,M_CLOCKA2
+STORE		s0,_FR2
+INPUT	   s0,M_CLOCKA3
+STORE		s0,_FR3
+RETURN
+
+; ==========================================+
+; Decimation binary digits (FR)
+; ==========================================+
+MAIN_DB:
+
+; load 10 000 000
+LOAD		s0,80
+STORE		s0,_FD0
+LOAD		s0,96
+STORE		s0,_FD1
+LOAD		s0,98
+STORE		s0,_FD2
+LOAD		s0,00
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+; load 1 000 000
+LOAD		s0,40
+STORE		s0,_FD0
+LOAD		s0,42
+STORE		s0,_FD1
+LOAD		s0,0F
+STORE		s0,_FD2
+LOAD		s0,00
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+; load 100 000
+LOAD		s0,A0
+STORE		s0,_FD0
+LOAD		s0,86
+STORE		s0,_FD1
+LOAD		s0,01
+STORE		s0,_FD2
+LOAD		s0,00
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+; load 10 000
+LOAD		s0,10
+STORE		s0,_FD0
+LOAD		s0,27
+STORE		s0,_FD1
+LOAD		s0,00
+STORE		s0,_FD2
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+; load 1 000
+LOAD		s0,E8
+STORE		s0,_FD0
+LOAD		s0,03
+STORE		s0,_FD1
+LOAD		s0,00
+STORE		s0,_FD2
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+;.
+LOAD     s0,2E
+OUTPUT 	s0,M_TEXT_V
+
+; load 100
+LOAD		s0,64
+STORE		s0,_FD0
+LOAD		s0,00
+STORE		s0,_FD1
+STORE		s0,_FD2
+STORE		s0,_FD3
+
+CALL		MAIN_MOD
+LOAD		s0,s3
+ADD		s0,30
+OUTPUT 	s0,M_TEXT_V
+
+RETURN
+
+; ==========================================+
+; Get 1 digit by substractions (int s3)
+; Loop (compare & sub)= count
+; ==========================================+
+MAIN_MOD48:
+; Result
+LOAD    s3,00
+
+_MM48:
+; Compare
+CALL	  MAIN_CMPR_48	; Result in (C & Z)
+RETURN  C				; Greatest, return immediatelly
+
+; Sub (FR = FR - FD)
+CALL    MAIN_SUB_48
+
+; Inc
+ADD     s3,01
+; Loop
+JUMP	  _MM48
+
+; ==========================================+
+; Get 1 digit by substractions (int s3)
+; Loop (compare & sub)= count
+; ==========================================+
+MAIN_MOD:
+; Result
+LOAD    s3,00
+
+_MM:
+; Compare
+CALL	  MAIN_CMPR_32		; Result in (C & Z)
+RETURN  C				; Greatest, return immeduatelly
+
+; Sub (FR = FR - FD)
+CALL    MAIN_SUB
+
+; Inc
+ADD     s3,01
+; Loop
+JUMP	  _MM
+
+; ==========================================+
+; C = comp(FR, FD)
+; ==========================================+
+MAIN_CMPR_48:
+FETCH   s1,_FR5
+FETCH   s2,_FD5
+COMPARE s1,s2
+RETURN  C
+RETURN  NZ
+
+FETCH   s1,_FR4
+FETCH   s2,_FD4
+COMPARE s1,s2
+RETURN  C
+RETURN  NZ
+
+MAIN_CMPR_32:
+FETCH   s1,_FR3
+FETCH   s2,_FD3
+COMPARE s1,s2
+RETURN  C
+RETURN  NZ
+
+FETCH   s1,_FR2
+FETCH   s2,_FD2
+COMPARE s1,s2
+RETURN  C
+RETURN  NZ
+
+FETCH   s1,_FR1
+FETCH   s2,_FD1
+COMPARE s1,s2
+RETURN  C
+RETURN  NZ
+
+FETCH   s1,_FR0
+FETCH   s2,_FD0
+COMPARE s1,s2
+
+RETURN
+
+; ==========================================+
+; FR = FR - FD
+; ==========================================+
+MAIN_SUB:
+FETCH   s1,_FR0
+FETCH   s2,_FD0
+SUB    s1,s2
+STORE   s1,_FR0
+
+FETCH   s1,_FR1
+FETCH   s2,_FD1
+SUBCY  s1,s2
+STORE   s1,_FR1
+
+FETCH   s1,_FR2
+FETCH   s2,_FD2
+SUBCY  s1,s2
+STORE   s1,_FR2
+
+FETCH   s1,_FR3
+FETCH   s2,_FD3
+SUBCY  s1,s2
+STORE   s1,_FR3
+
+RETURN
+
+MAIN_SUB_48:
+FETCH   s1,_FR0
+FETCH   s2,_FD0
+SUB    s1,s2
+STORE   s1,_FR0
+
+FETCH   s1,_FR1
+FETCH   s2,_FD1
+SUBCY  s1,s2
+STORE   s1,_FR1
+
+FETCH   s1,_FR2
+FETCH   s2,_FD2
+SUBCY  s1,s2
+STORE   s1,_FR2
+
+FETCH   s1,_FR3
+FETCH   s2,_FD3
+SUBCY  s1,s2
+STORE   s1,_FR3
+
+FETCH   s1,_FR4
+FETCH   s2,_FD4
+SUBCY  s1,s2
+STORE   s1,_FR4
+
+FETCH   s1,_FR5
+FETCH   s2,_FD5
+SUBCY  s1,s2
+STORE   s1,_FR5
+
+RETURN
+
+; ==============================================================================================================================================
+
+
+;==============================================================================
+; DDS Register out. Low(s2), Hight(s3)
+;==============================================================================
+F_DDS:
+OUTPUT	s2,BASE_DDS_LOW
+OUTPUT	s3,BASE_DDS_HIGH
+OUTPUT   s2,BASE_DDS_START
+RETURN
+
+F_DDS_PAUSE2:
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+LOAD		s0,s0
+RETURN
+
+F_DDS_PAUSE:
+CALL		F_DDS_PAUSE2
+CALL		F_DDS_PAUSE2
+CALL		F_DDS_PAUSE2
+CALL		F_DDS_PAUSE2
+RETURN
+
+F_DDSP:
+CALL		F_DDS
+CALL		F_DDS_PAUSE
+CALL		F_DDS_PAUSE
+CALL		F_DDS_PAUSE
+CALL		F_DDS_PAUSE
+RETURN
+
+
+; ==========================================+
+; DDS full cycle
+; ==========================================+
+MAIN_DDS_FULL:
+
+FETCH	s0,	_DDSS				; scale
+FETCH	s1,	_DDSF				; value
+; 6 band
+COMPARE		s0,06
+JUMP			NZ,__DDFB
+; compare to 30
+COMPARE		s1,1E
+JUMP			C,__DDFB
+LOAD			s1,1E
+__DDFB:
+STORE	s1,	_DDSF
+
+
+CALL	MAIN_DDS						; Print value
+CALL	MAIN_DDSF					; Calc Frequency
+
+; 30 Mills * 2 ^ 21
+;LOAD		s0,39
+;STORE		s0,_FD5
+;LOAD		s0,38
+;STORE		s0,_FD4
+;LOAD		s0,70
+;STORE		s0,_FD3
+;LOAD		s0,00
+;STORE		s0,_FD2
+;STORE		s0,_FD1
+;STORE		s0,_FD0
+
+;CALL	  MAIN_CMPR_48	; Result in (C & Z)
+;JUMP 		C,__DDFB				; Greatest, return immediatelly
+
+;LOAD		s0,39
+;STORE		s0,_FR5
+;LOAD		s0,38
+;STORE		s0,_FR4
+;LOAD		s0,70
+;STORE		s0,_FR3
+;LOAD		s0,00
+;STORE		s0,_FR2
+;STORE		s0,_FR1
+;STORE		s0,_FR0
+
+;__DDFB:
+
+CALL	MAIN_DIV						; Calc Divisor
+
+; Store divisor in DDS chip
+
+; Off
+LOAD	s3,21
+LOAD	s2,00
+CALL	F_DDSP
+
+; Low 14 bit || 0x4000
+FETCH	s2,	_FF0
+FETCH	s3,	_FF1
+AND	s3,	3F
+OR		s3,	40
+CALL	F_DDSP
+
+; Hight 14 bit || 0x4000
+FETCH	s2,	_FF2					; get 6 bit of F2
+RL		s2
+RL		s2
+LOAD	s0,	s2						; get high 2 bit F2
+AND	s2,	FC
+
+FETCH	s3,	_FF1					; get low 2 bit F1
+RL		s3
+RL		s3
+AND	s3,	03
+OR		s2,	s3						; s2 complete
+
+FETCH	s3,	_FF3					; get 4 bit from F3
+SL0	s3
+SL0	s3
+AND	s0,	03
+OR		s3,	s0
+
+AND	s3,	3F						; || 40
+OR		s3,	40
+
+CALL	F_DDSP
+
+; On & TRI
+LOAD	s3,20
+FETCH	s2,_TRI
+AND	s2,01
+SL0	s2
+CALL	F_DDSP
+
+
+RETURN
+
+
+
+
+
+
+
+
+; ==========================================+
+; Recalc DDS value & programm DDS           |
+; DDSS - scaler, DDSF - value               |
+; ==========================================+
+MAIN_DDS:
+
+;LOAD		s0,00
+;OUTPUT	s0,M_TEXT_ADDR
+;FETCH		s0,_DDSS
+;ADD		s0,30
+;OUTPUT	s0,M_TEXT_V
+;FETCH		s0,_DDSF
+;OUTPUT	s0,M_TEXT_V
+
+; Constants
+LOAD	  s4,20	;WS
+LOAD	  s5,30	;WS
+
+; Base address
+LOAD		s0,00
+OUTPUT	s0,M_TEXT_ADDR
+FETCH		s0,_DDSS
+
+COMPARE  s0,00
+JUMP		NZ,__DD0
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+CALL		__WHZ
+OUTPUT	s4,M_TEXT_V
+RETURN
+__DD0:
+
+COMPARE  s0,01
+JUMP		NZ,__DD1
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+OUTPUT	s5,M_TEXT_V
+CALL		__WHZ
+OUTPUT	s4,M_TEXT_V
+RETURN
+__DD1:
+
+COMPARE  s0,02
+JUMP		NZ,__DD2
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+OUTPUT	s5,M_TEXT_V
+OUTPUT	s5,M_TEXT_V
+CALL		__WHZ
+OUTPUT	s4,M_TEXT_V
+RETURN
+__DD2:
+
+COMPARE  s0,03
+JUMP		NZ,__DD3
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+JUMP		__WKHZ
+__DD3:
+
+COMPARE  s0,04
+JUMP		NZ,__DD4
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+OUTPUT	s5,M_TEXT_V
+JUMP		__WKHZ
+__DD4:
+
+COMPARE  s0,05
+JUMP		NZ,__DD5
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+OUTPUT	s5,M_TEXT_V
+OUTPUT	s5,M_TEXT_V
+JUMP		__WKHZ
+__DD5:
+
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+OUTPUT	s4,M_TEXT_V
+CALL		MAIN_DDS_2D
+JUMP		__WMHZ
+
+; 
+; s1 10
+; s2 initial and ones
+;
+MAIN_DDS_2D:
+FETCH	s2,_DDSF
+LOAD	s3,0A
+LOAD	s1,30
+__D20:
+COMPARE	s2,s3
+JUMP	C,__D21
+SUB	s2,s3
+ADD	s1,01
+JUMP	__D20
+__D21:
+ADD	s2,30
+OUTPUT	s1,M_TEXT_V
+OUTPUT	s2,M_TEXT_V
+RETURN
+
+; ==========================================+
+; DDSF 2 frequency
+; ==========================================+
+
+MAIN_DDSF:
+FETCH	s1,	_DDSS ;  scaler
+FETCH s2,	_DDSF ;  value
+LOAD	s3,	00
+
+; First init
+STORE	s3,	_FR0
+STORE	s3,	_FR1
+STORE	s2,	_FR2
+STORE	s3,	_FR3
+STORE	s3,	_FR4
+STORE	s3,	_FR5
+
+; 21 bits to left
+CALL	MAIN_ADD_FR_FR
+CALL	MAIN_ADD_FR_FR
+CALL	MAIN_ADD_FR_FR
+CALL	MAIN_ADD_FR_FR
+CALL	MAIN_ADD_FR_FR
+
+__DSF:
+COMPARE s1,00
+RETURN	Z
+; mul by 10
+
+CALL	MAIN_MOV_FD_FR	; fd = fr
+CALL	MAIN_ADD_FR_FR ; fr *= 2
+CALL	MAIN_ADD_FR_FR ; fr *= 2
+CALL	MAIN_ADD_FR_FD ; 
+CALL	MAIN_ADD_FR_FR ; fr *= 2
+
+SUB	s1,01
+JUMP	__DSF
+
+
+; ==========================================+
+MAIN_DIV:
+
+; load divider up 2
+LOAD		s0,07
+STORE		s0,_FD5
+LOAD		s0,DE
+STORE		s0,_FD4
+LOAD		s0,29
+STORE		s0,_FD3
+LOAD		s0,00
+STORE		s0,_FD2
+STORE		s0,_FD1
+STORE		s0,_FD0
+
+CALL		MAIN_MOD48
+STORE		s3,	_FF3
+
+; load divider up 1
+LOAD		s0,07
+STORE		s0,_FD4
+LOAD		s0,DE
+STORE		s0,_FD3
+LOAD		s0,29
+STORE		s0,_FD2
+LOAD		s0,00
+STORE		s0,_FD5
+STORE		s0,_FD1
+STORE		s0,_FD0
+
+CALL		MAIN_MOD48
+STORE		s3,	_FF2
+
+
+; load divider up 0
+LOAD		s0,07
+STORE		s0,_FD3
+LOAD		s0,DE
+STORE		s0,_FD2
+LOAD		s0,29
+STORE		s0,_FD1
+LOAD		s0,00
+STORE		s0,_FD5
+STORE		s0,_FD4
+STORE		s0,_FD0
+
+CALL		MAIN_MOD48
+STORE		s3,	_FF1
+
+
+; load divider up -1
+LOAD		s0,07
+STORE		s0,_FD2
+LOAD		s0,DE
+STORE		s0,_FD1
+LOAD		s0,29
+STORE		s0,_FD0
+LOAD		s0,00
+STORE		s0,_FD5
+STORE		s0,_FD4
+STORE		s0,_FD3
+
+CALL		MAIN_MOD48
+STORE		s3,	_FF0
+
+RETURN
+
+
+; ==========================================+
+
+MAIN_MOV_FD_FR:
+FETCH	s0,	_FR0
+STORE	s0,	_FD0
+FETCH	s0,	_FR1
+STORE	s0,	_FD1
+FETCH	s0,	_FR2
+STORE	s0,	_FD2
+FETCH	s0,	_FR3
+STORE	s0,	_FD3
+FETCH	s0,	_FR4
+STORE	s0,	_FD4
+FETCH	s0,	_FR5
+STORE	s0,	_FD5
+RETURN
+
+; ==========================================+
+
+MAIN_ADD_FR_FR:
+FETCH	s0,	_FR0
+ADD	s0,s0
+STORE	s0,	_FR0
+FETCH	s0,	_FR1
+ADDCY	s0,s0
+STORE	s0,	_FR1
+FETCH	s0,	_FR2
+ADDCY	s0,s0
+STORE	s0,	_FR2
+FETCH	s0,	_FR3
+ADDCY	s0,s0
+STORE	s0,	_FR3
+FETCH	s0,	_FR4
+ADDCY	s0,s0
+STORE	s0,	_FR4
+FETCH	s0,	_FR5
+ADDCY	s0,s0
+STORE	s0,	_FR5
+RETURN
+
+; ==========================================+
+
+MAIN_ADD_FR_FD:
+FETCH	s0,	_FR0
+FETCH	s3,	_FD0
+ADD	s0,s3
+STORE	s0,	_FR0
+FETCH	s0,	_FR1
+FETCH	s3,	_FD1
+ADDCY	s0,s3
+STORE	s0,	_FR1
+FETCH	s0,	_FR2
+FETCH	s3,	_FD2
+ADDCY	s0,s3
+STORE	s0,	_FR2
+FETCH	s0,	_FR3
+FETCH	s3,	_FD3
+ADDCY	s0,s3
+STORE	s0,	_FR3
+FETCH	s0,	_FR4
+FETCH	s3,	_FD4
+ADDCY	s0,s3
+STORE	s0,	_FR4
+FETCH	s0,	_FR5
+FETCH	s3,	_FD5
+ADDCY	s0,s3
+STORE	s0,	_FR5
+RETURN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

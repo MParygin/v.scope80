@@ -1,0 +1,11 @@
+//----------------------- 4x4 Tasten In --------------------------------------X802
+NET "COL1" LOC = P6 | IOSTANDARD = "LVCMOS33" | SLEW = SLOW | PULLDOWN;//pin22
+NET "COL2" LOC = P18 | IOSTANDARD = "LVCMOS33" | SLEW = SLOW | PULLDOWN;//pin21
+NET "COL3" LOC = P10 | IOSTANDARD = "LVCMOS33" | SLEW = SLOW | PULLDOWN;//pin16
+NET "COL4" LOC = P12 | IOSTANDARD = "LVCMOS33" | SLEW = SLOW | PULLDOWN;//pin15
+
+//------------------------ 4x4 Tasten Out --------------------------X802
+NET "ROW1" LOC = P22 | IOSTANDARD = "LVCMOS33";// | SLEW = SLOW;//pin26
+NET "ROW2" LOC = P23 | IOSTANDARD = "LVCMOS33";// | SLEW = SLOW;//pin25
+NET "ROW3" LOC = P20 | IOSTANDARD = "LVCMOS33";// | SLEW = SLOW;//pin24
+NET "ROW4" LOC = P21 | IOSTANDARD = "LVCMOS33";// | SLEW = SLOW;//pin23

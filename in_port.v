@@ -1,0 +1,16 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Module Name:    in_port 
+//////////////////////////////////////////////////////////////////////////////////
+module in_port #(parameter BASE = 0) (
+    input clk,
+	 input [7:0] port_id,
+	 input inp,
+    output [7:0] in_port
+);
+
+
+assign in_port = (port_id == BASE) ? {7'b0, !inp} : 8'bz;
+
+
+endmodule
